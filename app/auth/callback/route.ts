@@ -12,7 +12,11 @@ function getSupabaseKey() {
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/home";
+  const requestedNext = searchParams.get("next");
+  const next =
+    requestedNext?.startsWith("/") && !requestedNext.startsWith("//")
+      ? requestedNext
+      : "/home";
   const oauthError = searchParams.get("error");
   const oauthDescription = searchParams.get("error_description");
 

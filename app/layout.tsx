@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, Syne } from "next/font/google";
+import { INTRO_GATE_SCRIPT, IntroSplash } from "@/components/intro-splash";
 import { PulseProvider } from "@/lib/store/pulse-store";
 import "./globals.css";
 
@@ -30,8 +31,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${syne.variable} ${dmSans.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col font-sans">
+        <script dangerouslySetInnerHTML={{ __html: INTRO_GATE_SCRIPT }} />
+        <IntroSplash />
         <PulseProvider>{children}</PulseProvider>
       </body>
     </html>

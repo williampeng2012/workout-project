@@ -127,3 +127,219 @@ h3,
   background: #fff;
   color: #0a0a0a;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Intro splash: extruded 3D wordmark + white light sweep.
+   Shown once per tab session (see INTRO_GATE_SCRIPT).
+   ───────────────────────────────────────────────────────────── */
+html[data-intro="seen"] .intro {
+  display: none;
+}
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  background: radial-gradient(ellipse 70% 55% at 50% 50%, #1c1c20 0%, var(--ink, #0b0b0c) 72%);
+  animation: intro-out 600ms var(--ease-in-out, cubic-bezier(0.65, 0, 0.35, 1)) 2900ms forwards;
+}
+.intro.is-skipping {
+  animation: intro-out 280ms ease forwards;
+}
+
+.intro-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  perspective: 1100px;
+  animation: intro-fade 700ms ease both;
+}
+
+.intro-rise {
+  transform-style: preserve-3d;
+  animation: intro-rise 1100ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) both;
+}
+
+.intro-sign {
+  position: relative;
+  transform-style: preserve-3d;
+  font-family: var(--font-display), ui-sans-serif, sans-serif;
+  font-size: clamp(64px, 19vw, 240px);
+  font-weight: 900;
+  font-stretch: 72%;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  animation: intro-turn 3400ms var(--ease-in-out, cubic-bezier(0.65, 0, 0.35, 1)) both;
+}
+.intro-sign > span {
+  display: block;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.intro-layer,
+.intro-lit,
+.intro-shine {
+  position: absolute;
+  inset: 0;
+}
+
+/* Extrusion: stacked copies pushed back in Z, darkening with depth. */
+.intro-layer {
+  color: hsl(60 3% calc(36% - var(--z) * 1.9%));
+  transform: translateZ(calc(var(--z) * -0.011em));
+}
+
+/* Unlit face: brushed steel. */
+.intro-face {
+  position: relative;
+  color: transparent;
+  background-image: linear-gradient(180deg, #8e8e88 0%, #56564f 100%);
+}
+
+/* Lit face: revealed left → right, in step with the shine band. */
+.intro-lit {
+  color: transparent;
+  background-image: linear-gradient(180deg, #ffffff 0%, #e2e2da 100%);
+  transform: translateZ(1px);
+  clip-path: inset(0 100% 0 0);
+  animation: intro-lit 1300ms linear 700ms forwards;
+}
+
+/* Hot band of light travelling across the letters. */
+.intro-shine {
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.9) 48%,
+    #fff 50%,
+    rgb(255 255 255 / 0.9) 52%,
+    transparent 62%
+  );
+  background-size: 300% 100%;
+  background-position: 95% 0;
+  transform: translateZ(2px);
+  animation: intro-shine 1300ms linear 700ms both;
+}
+
+/* Soft light column sweeping the whole screen. */
+.intro-beam {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 38vw;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 0.08) 30%,
+    rgb(255 255 255 / 0.3) 47%,
+    rgb(255 255 255 / 0.55) 50%,
+    rgb(255 255 255 / 0.3) 53%,
+    rgb(255 255 255 / 0.08) 70%,
+    transparent
+  );
+  mix-blend-mode: screen;
+  transform: translate3d(-45vw, 0, 0) skewX(-14deg);
+  animation: intro-beam 1300ms linear 700ms both;
+}
+
+.intro-bar {
+  margin-top: clamp(18px, 3vw, 32px);
+  width: clamp(56px, 9vw, 120px);
+  height: 3px;
+  border-radius: 999px;
+  background: var(--accent, #d4ff3f);
+  box-shadow: 0 0 24px rgb(212 255 63 / 0.55);
+  animation: intro-bar 600ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) 1750ms both;
+}
+
+.intro-tagline {
+  margin: 14px 0 0;
+  font-size: clamp(11px, 1.2vw, 13px);
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--fg-2, rgb(244 244 240 / 0.66));
+  animation: intro-tag 700ms var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)) 1900ms both;
+}
+
+@keyframes intro-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes intro-rise {
+  from {
+    transform: translate3d(0, 60px, -240px) rotateX(32deg);
+  }
+  to {
+    transform: translate3d(0, 0, 0) rotateX(8deg);
+  }
+}
+@keyframes intro-turn {
+  from {
+    transform: rotateY(-20deg);
+  }
+  to {
+    transform: rotateY(12deg);
+  }
+}
+@keyframes intro-shine {
+  from {
+    background-position: 95% 0;
+  }
+  to {
+    background-position: 5% 0;
+  }
+}
+@keyframes intro-lit {
+  0%,
+  22% {
+    clip-path: inset(0 100% 0 0);
+  }
+  78%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes intro-beam {
+  from {
+    transform: translate3d(-45vw, 0, 0) skewX(-14deg);
+  }
+  to {
+    transform: translate3d(110vw, 0, 0) skewX(-14deg);
+  }
+}
+@keyframes intro-bar {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes intro-tag {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+@keyframes intro-out {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro {
+    display: none;
+  }
+}
