@@ -1,25 +1,45 @@
-import type { Metadata } from "next";
-import { DM_Sans, Syne } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Archivo, DM_Sans } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { INTRO_GATE_SCRIPT, IntroSplash } from "@/components/intro-splash";
+import { ToastProvider } from "@/components/ui/toast";
 import { PulseProvider } from "@/lib/store/pulse-store";
 import "./globals.css";
 
-const syne = Syne({
-  variable: "--font-syne",
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+  axes: ["wdth"],
+  display: "swap",
 });
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Pulsepath",
+  title: {
+    default: "Pulsepath — Train a little, every day",
+    template: "%s · Pulsepath",
+  },
   description:
-    "Short home workouts on a path — streaks, XP, and daily habits that pull you back.",
+    "Short, coached home workouts on a path you can finish. Programs, live classes, technique courses and streaks that reward showing up.",
+  applicationName: "Pulsepath",
+  appleWebApp: {
+    capable: true,
+    title: "Pulsepath",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0b0b0c",
+  colorScheme: "dark",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -30,14 +50,19 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${syne.variable} ${dmSans.variable} h-full antialiased`}
+      className={`${archivo.variable} ${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col font-sans">
+      <body className="min-h-full font-sans">
         <script dangerouslySetInnerHTML={{ __html: INTRO_GATE_SCRIPT }} />
         <IntroSplash />
-        <PulseProvider>{children}</PulseProvider>
+        <PulseProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </PulseProvider>
       </body>
+      {process.env.NODE_ENV === "production" && (
+        <GoogleAnalytics gaId="G-3TYMG6KS5R" />
+      )}
     </html>
   );
 }

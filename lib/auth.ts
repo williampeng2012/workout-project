@@ -1,17 +1,8 @@
+const PUBLIC_PATHS = new Set(["/", "/sign-in", "/sign-up", "/forgot-password", "/reset-password"]);
+const PUBLIC_PREFIXES = ["/auth/", "/legal/", "/images/"];
+
 export function isPublicPath(pathname: string): boolean {
-  if (
-    pathname === "/" ||
-    pathname === "/sign-in" ||
-    pathname === "/sign-up"
-  ) {
-    return true;
-  }
-
-  if (pathname.startsWith("/auth/")) {
-    return true;
-  }
-
-  return false;
+  return PUBLIC_PATHS.has(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
 export function isSupabaseEnvReady(): boolean {

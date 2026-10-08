@@ -99,18 +99,24 @@ alter table public.habits enable row level security;
 alter table public.habit_logs enable row level security;
 alter table public.lesson_progress enable row level security;
 
+drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles
   for select using (auth.uid() = id);
+drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own" on public.profiles
   for update using (auth.uid() = id);
+drop policy if exists "profiles_insert_own" on public.profiles;
 create policy "profiles_insert_own" on public.profiles
   for insert with check (auth.uid() = id);
 
+drop policy if exists "habits_all_own" on public.habits;
 create policy "habits_all_own" on public.habits
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "habit_logs_all_own" on public.habit_logs;
 create policy "habit_logs_all_own" on public.habit_logs
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "lesson_progress_all_own" on public.lesson_progress;
 create policy "lesson_progress_all_own" on public.lesson_progress
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

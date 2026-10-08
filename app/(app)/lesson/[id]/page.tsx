@@ -1,22 +1,28 @@
-"use client";
-
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { use } from "react";
-import { LessonPlayer } from "@/components/lesson-player";
-import { getLesson } from "@/content/lessons";
+import { LessonPlayerRoute } from "@/components/lesson-player";
+import { LESSONS, getLesson } from "@/content/lessons";
 
-export default function LessonPage({
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return LESSONS.map((l) => ({ id: l.id }));
+}
+
+export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+}): Promise<Metadata> {
+  const { id } = await params;
+  const lesson = getLesson(id);
+  return lesson ? { title: lesson.title } : {};
+}
+
+export default async function LessonPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const lesson = getLesson(id);
   if (!lesson) notFound();
 
-  return (
-    <main>
-      <LessonPlayer lesson={lesson} />
-    </main>
-  );
+  return <LessonPlayerRoute lesson={lesson} />;
 }

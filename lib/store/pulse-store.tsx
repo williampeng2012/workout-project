@@ -10,7 +10,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { getOrderedLessons } from "@/content/lessons";
+import { getOrderedLessons, type Lesson } from "@/content/lessons";
 import {
   applyDailyGoalComplete,
   daysUntilNextStreakBonus,
@@ -19,6 +19,7 @@ import {
   todayKey,
   XP,
 } from "@/lib/gamification";
+import { lessonOrderFor, type FitnessLevel } from "@/lib/training";
 
 const STORAGE_KEY = "pulsepath-v1";
 
@@ -34,12 +35,65 @@ export type PulseState = {
   streakUpdatedOn: string | null;
   streakRewardsClaimed: number[];
   goal: "fat_loss" | "muscle" | "maintain" | null;
+  /** Sets workout volume, rest and program order; null = intermediate defaults. */
+  fitnessLevel: FitnessLevel | null;
   trainingDays: number | null;
   onboardingDone: boolean;
   habits: LocalHabit[];
   habitLogs: Record<string, string[]>;
   lessonProgress: Record<string, string>;
   dailyGoalApplied: string[];
+  /** taskId -> completion ISO timestamp for today's plan */
+  dailyTasksCompleted: Record<string, string>;
+  /** Total minutes logged from workouts */
+  totalWorkoutMinutes: number;
+  /** Dates when daily goal was met (for weekly chart) */
+  trainingDaysCompleted: string[];
+  displayName: string;
+  /** Square JPEG data URL (≤256px), or null to show initials */
+  avatar: string | null;
+  /** Content ids the user asked to be notified about (coming-soon items) */
+  notifyRequests: string[];
+  recentSearches: string[];
+  preferences: Preferences;
+  /** day (YYYY-MM-DD) -> foods logged that day */
+  foodLogs: Record<string, FoodEntry[]>;
+  body: BodyProfile | null;
+  /** User-set daily calorie target; null = use the calculated one */
+  calorieTargetOverride: number | null;
+};
+
+export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+
+export type FoodEntry = {
+  id: string;
+  name: string;
+  kcal: number;
+  meal: MealType;
+  loggedAt: string;
+};
+
+export type BodyProfile = {
+  sex: "female" | "male";
+  age: number;
+  heightCm: number;
+  weightKg: number;
+};
+
+export type Preferences = {
+  units: "metric" | "imperial";
+  workoutReminders: boolean;
+  classReminders: boolean;
+  weeklyRecap: boolean;
+  restTimerSound: boolean;
+};
+
+const DEFAULT_PREFERENCES: Preferences = {
+  units: "metric",
+  workoutReminders: true,
+  classReminders: true,
+  weeklyRecap: false,
+  restTimerSound: true,
 };
 
 const DEFAULT_HABITS: LocalHabit[] = [
@@ -54,12 +108,24 @@ export const defaultState = (): PulseState => ({
   streakUpdatedOn: null,
   streakRewardsClaimed: [],
   goal: null,
+  fitnessLevel: null,
   trainingDays: null,
   onboardingDone: false,
   habits: DEFAULT_HABITS,
   habitLogs: {},
   lessonProgress: {},
   dailyGoalApplied: [],
+  dailyTasksCompleted: {},
+  totalWorkoutMinutes: 0,
+  trainingDaysCompleted: [],
+  displayName: "",
+  avatar: null,
+  notifyRequests: [],
+  recentSearches: [],
+  preferences: DEFAULT_PREFERENCES,
+  foodLogs: {},
+  body: null,
+  calorieTargetOverride: null,
 });
 
 function loadState(): PulseState {
@@ -67,7 +133,12 @@ function loadState(): PulseState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
-    return { ...defaultState(), ...JSON.parse(raw) } as PulseState;
+    const parsed = JSON.parse(raw) as Partial<PulseState>;
+    return {
+      ...defaultState(),
+      ...parsed,
+      preferences: { ...DEFAULT_PREFERENCES, ...(parsed.preferences ?? {}) },
+    } as PulseState;
   } catch {
     return defaultState();
   }
@@ -84,8 +155,8 @@ function countHabitsToday(state: PulseState, day: string): number {
 }
 
 function countLessonsToday(state: PulseState, day: string): number {
-  return Object.values(state.lessonProgress).filter((iso) =>
-    iso.startsWith(day),
+  return Object.values(state.lessonProgress).filter(
+    (iso) => todayKey(new Date(iso)) === day,
   ).length;
 }
 
@@ -138,6 +209,9 @@ function maybeApplyDailyGoal(state: PulseState): {
       streakUpdatedOn: streak.streakUpdatedOn,
       streakRewardsClaimed: streak.streakRewardsClaimed,
       dailyGoalApplied: [...state.dailyGoalApplied, day],
+      trainingDaysCompleted: state.trainingDaysCompleted.includes(day)
+        ? state.trainingDaysCompleted
+        : [...state.trainingDaysCompleted, day],
     },
     meta: { bonusXp: streak.bonusXp, claimedMilestone },
   };
@@ -155,19 +229,44 @@ type PulseStore = {
   state: PulseState;
   level: number;
   completedLessonIds: Set<string>;
+  /** Workouts in the order this user's path unlocks them. */
+  lessonOrder: Lesson[];
   currentLessonId: string | null;
   lessonsCompletedToday: number;
   habitsCheckedToday: number;
   dailyGoalMet: boolean;
   nextStreakBonus: { daysLeft: number; rewardXp: number } | null;
+  todayTasksCompleted: number;
+  todayTasksTotal: number;
   completeOnboarding: (input: {
     goal: PulseState["goal"];
+    fitnessLevel: FitnessLevel;
     trainingDays: number;
     habitNames: string[];
   }) => void;
   toggleHabitToday: (habitId: string) => { xpDelta: number; checked: boolean };
   completeLesson: (lessonId: string) => CompleteLessonResult;
+  completeDailyTask: (taskId: string, durationMinutes?: number) => void;
+  isDailyTaskDone: (taskId: string) => boolean;
   resetDemo: () => void;
+  updateProfile: (input: {
+    displayName?: string;
+    goal?: PulseState["goal"];
+    fitnessLevel?: FitnessLevel;
+    trainingDays?: number;
+  }) => void;
+  updateAvatar: (avatar: string | null) => void;
+  updatePreferences: (patch: Partial<Preferences>) => void;
+  toggleNotify: (id: string) => boolean;
+  addHabit: (name: string) => void;
+  removeHabit: (habitId: string) => void;
+  pushRecentSearch: (query: string) => void;
+  clearRecentSearches: () => void;
+  addFood: (entry: { name: string; kcal: number; meal: MealType }, day?: string) => FoodEntry | null;
+  removeFood: (day: string, entryId: string) => void;
+  restoreFood: (day: string, entry: FoodEntry) => void;
+  updateBody: (body: BodyProfile | null) => void;
+  setCalorieTarget: (kcal: number | null) => void;
 };
 
 const PulseContext = createContext<PulseStore | null>(null);
@@ -177,6 +276,8 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PulseState>(defaultState);
 
   useEffect(() => {
+    // localStorage is only readable after mount; hydrating once here is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState(loadState());
     setHydrated(true);
   }, []);
@@ -189,12 +290,14 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const completeOnboarding = useCallback(
     (input: {
       goal: PulseState["goal"];
+      fitnessLevel: FitnessLevel;
       trainingDays: number;
       habitNames: string[];
     }) => {
       setState((prev) => ({
         ...prev,
         goal: input.goal,
+        fitnessLevel: input.fitnessLevel,
         trainingDays: input.trainingDays,
         onboardingDone: true,
         habits: input.habitNames.map((name, i) => ({
@@ -256,6 +359,9 @@ export function PulseProvider({ children }: { children: ReactNode }) {
           ...prev.lessonProgress,
           [lessonId]: new Date().toISOString(),
         },
+        totalWorkoutMinutes:
+          prev.totalWorkoutMinutes +
+          (getOrderedLessons().find((l) => l.id === lessonId)?.minutes ?? 0),
       };
       const { state: next, meta } = maybeApplyDailyGoal(withLesson);
       setState(next);
@@ -269,10 +375,182 @@ export function PulseProvider({ children }: { children: ReactNode }) {
     [state],
   );
 
+  const completeDailyTask = useCallback(
+    (taskId: string, durationMinutes = 0) => {
+      setState((prev) => {
+        if (prev.dailyTasksCompleted[taskId]) return prev;
+        return {
+          ...prev,
+          dailyTasksCompleted: {
+            ...prev.dailyTasksCompleted,
+            [taskId]: new Date().toISOString(),
+          },
+          totalWorkoutMinutes:
+            prev.totalWorkoutMinutes + durationMinutes,
+        };
+      });
+    },
+    [],
+  );
+
+  const isDailyTaskDone = useCallback(
+    (taskId: string) => !!state.dailyTasksCompleted[taskId],
+    [state.dailyTasksCompleted],
+  );
+
   const resetDemo = useCallback(() => {
     const fresh = defaultState();
     setState(fresh);
     saveState(fresh);
+  }, []);
+
+  const updateProfile = useCallback(
+    (input: {
+      displayName?: string;
+      goal?: PulseState["goal"];
+      fitnessLevel?: FitnessLevel;
+      trainingDays?: number;
+    }) => {
+      setState((prev) => ({
+        ...prev,
+        ...(input.displayName !== undefined
+          ? { displayName: input.displayName.trim().slice(0, 40) }
+          : {}),
+        ...(input.goal !== undefined ? { goal: input.goal } : {}),
+        ...(input.fitnessLevel !== undefined ? { fitnessLevel: input.fitnessLevel } : {}),
+        ...(input.trainingDays !== undefined
+          ? { trainingDays: input.trainingDays }
+          : {}),
+      }));
+    },
+    [],
+  );
+
+  const updateAvatar = useCallback((avatar: string | null) => {
+    setState((prev) => ({ ...prev, avatar }));
+  }, []);
+
+  const updatePreferences = useCallback((patch: Partial<Preferences>) => {
+    setState((prev) => ({
+      ...prev,
+      preferences: { ...prev.preferences, ...patch },
+    }));
+  }, []);
+
+  const toggleNotify = useCallback(
+    (id: string) => {
+      const on = !state.notifyRequests.includes(id);
+      setState((prev) => ({
+        ...prev,
+        notifyRequests: on
+          ? [...prev.notifyRequests.filter((x) => x !== id), id]
+          : prev.notifyRequests.filter((x) => x !== id),
+      }));
+      return on;
+    },
+    [state.notifyRequests],
+  );
+
+  const addHabit = useCallback((name: string) => {
+    const clean = name.trim().slice(0, 32);
+    if (!clean) return;
+    setState((prev) => {
+      if (prev.habits.some((h) => h.name.toLowerCase() === clean.toLowerCase())) {
+        return prev;
+      }
+      return {
+        ...prev,
+        habits: [
+          ...prev.habits,
+          {
+            id: `h-${Date.now().toString(36)}`,
+            name: clean,
+            sortOrder: prev.habits.length,
+          },
+        ],
+      };
+    });
+  }, []);
+
+  const removeHabit = useCallback((habitId: string) => {
+    setState((prev) => {
+      const logs = { ...prev.habitLogs };
+      delete logs[habitId];
+      return {
+        ...prev,
+        habits: prev.habits.filter((h) => h.id !== habitId),
+        habitLogs: logs,
+      };
+    });
+  }, []);
+
+  const pushRecentSearch = useCallback((query: string) => {
+    const q = query.trim();
+    if (!q) return;
+    setState((prev) => ({
+      ...prev,
+      recentSearches: [
+        q,
+        ...prev.recentSearches.filter(
+          (s) => s.toLowerCase() !== q.toLowerCase(),
+        ),
+      ].slice(0, 6),
+    }));
+  }, []);
+
+  const clearRecentSearches = useCallback(() => {
+    setState((prev) => ({ ...prev, recentSearches: [] }));
+  }, []);
+
+  const addFood = useCallback(
+    (input: { name: string; kcal: number; meal: MealType }, day = todayKey()): FoodEntry | null => {
+      const name = input.name.trim().slice(0, 60);
+      const kcal = Math.round(input.kcal);
+      if (!name || !Number.isFinite(kcal) || kcal <= 0 || kcal > 5000) return null;
+      const entry: FoodEntry = {
+        id: `f-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        name,
+        kcal,
+        meal: input.meal,
+        loggedAt: new Date().toISOString(),
+      };
+      setState((prev) => ({
+        ...prev,
+        foodLogs: { ...prev.foodLogs, [day]: [...(prev.foodLogs[day] ?? []), entry] },
+      }));
+      return entry;
+    },
+    [],
+  );
+
+  const removeFood = useCallback((day: string, entryId: string) => {
+    setState((prev) => ({
+      ...prev,
+      foodLogs: {
+        ...prev.foodLogs,
+        [day]: (prev.foodLogs[day] ?? []).filter((e) => e.id !== entryId),
+      },
+    }));
+  }, []);
+
+  const restoreFood = useCallback((day: string, entry: FoodEntry) => {
+    setState((prev) => {
+      const list = prev.foodLogs[day] ?? [];
+      if (list.some((e) => e.id === entry.id)) return prev;
+      return { ...prev, foodLogs: { ...prev.foodLogs, [day]: [...list, entry] } };
+    });
+  }, []);
+
+  const updateBody = useCallback((body: BodyProfile | null) => {
+    setState((prev) => ({ ...prev, body }));
+  }, []);
+
+  const setCalorieTarget = useCallback((kcal: number | null) => {
+    setState((prev) => ({
+      ...prev,
+      calorieTargetOverride:
+        kcal === null || !Number.isFinite(kcal) ? null : Math.min(6000, Math.max(800, Math.round(kcal))),
+    }));
   }, []);
 
   const day = todayKey();
@@ -281,9 +559,12 @@ export function PulseProvider({ children }: { children: ReactNode }) {
     [state.lessonProgress],
   );
 
-  const ordered = getOrderedLessons();
+  const lessonOrder = useMemo(
+    () => lessonOrderFor({ goal: state.goal, level: state.fitnessLevel }),
+    [state.goal, state.fitnessLevel],
+  );
   const currentLessonId =
-    ordered.find((l) => !completedLessonIds.has(l.id))?.id ?? null;
+    lessonOrder.find((l) => !completedLessonIds.has(l.id))?.id ?? null;
 
   const lessonsCompletedToday = countLessonsToday(state, day);
   const habitsCheckedToday = countHabitsToday(state, day);
@@ -296,20 +577,43 @@ export function PulseProvider({ children }: { children: ReactNode }) {
     state.streakRewardsClaimed,
   );
 
+  const todayTaskPrefix = `${day}-`;
+  const todayCompletedTasks = Object.keys(state.dailyTasksCompleted).filter(
+    (k) => k.startsWith(todayTaskPrefix),
+  ).length;
+
   const value: PulseStore = {
     hydrated,
     state,
     level: levelFromXp(state.xp),
     completedLessonIds,
+    lessonOrder,
     currentLessonId,
     lessonsCompletedToday,
     habitsCheckedToday,
     dailyGoalMet,
     nextStreakBonus,
+    todayTasksCompleted: todayCompletedTasks,
+    todayTasksTotal: 0,
     completeOnboarding,
     toggleHabitToday,
     completeLesson,
+    completeDailyTask,
+    isDailyTaskDone,
     resetDemo,
+    updateProfile,
+    updateAvatar,
+    updatePreferences,
+    toggleNotify,
+    addHabit,
+    removeHabit,
+    pushRecentSearch,
+    clearRecentSearches,
+    addFood,
+    removeFood,
+    restoreFood,
+    updateBody,
+    setCalorieTarget,
   };
 
   return (
