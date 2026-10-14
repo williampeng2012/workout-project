@@ -10,7 +10,7 @@ type Account = { id: string; name: string };
 
 /** Keeps the signed-in user's leaderboard stats and activity feed up to date. */
 export function SocialSync() {
-  const { hydrated, state, level } = usePulse();
+  const { hydrated, ownerId, state, level } = usePulse();
   const [account, setAccount] = useState<Account | null>(null);
   const latest = useRef({ state, level });
 
@@ -41,12 +41,12 @@ export function SocialSync() {
   ].join("|");
 
   useEffect(() => {
-    if (!hydrated || !account) return;
+    if (!hydrated || !account || ownerId !== account.id) return;
     const timer = window.setTimeout(() => {
       void syncSocial(account, latest.current.state, latest.current.level);
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [hydrated, account, signature]);
+  }, [hydrated, account, ownerId, signature]);
 
   return null;
 }

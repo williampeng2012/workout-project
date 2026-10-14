@@ -19,9 +19,16 @@ import {
   todayKey,
   XP,
 } from "@/lib/gamification";
+import type { User } from "@supabase/supabase-js";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { lessonOrderFor, type FitnessLevel } from "@/lib/training";
 
+/** Shared key used before accounts existed; still the only key when Supabase isn't configured. */
 const STORAGE_KEY = "pulsepath-v1";
+const GUEST_KEY = "pulsepath-guest-v1";
+const accountKey = (uid: string) => `${STORAGE_KEY}:${uid}`;
+/** Written by lib/social/sync.ts once an account has synced from this browser. */
+const SOCIAL_SNAPSHOT_PREFIX = "pulsepath-social:";
 
 export type LocalHabit = {
   id: string;
@@ -128,11 +135,9 @@ export const defaultState = (): PulseState => ({
   calorieTargetOverride: null,
 });
 
-function loadState(): PulseState {
-  if (typeof window === "undefined") return defaultState();
+function parseState(raw: string | null): PulseState | null {
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
     const parsed = JSON.parse(raw) as Partial<PulseState>;
     return {
       ...defaultState(),
@@ -140,12 +145,74 @@ function loadState(): PulseState {
       preferences: { ...DEFAULT_PREFERENCES, ...(parsed.preferences ?? {}) },
     } as PulseState;
   } catch {
+    return null;
+  }
+}
+
+function loadState(key: string): PulseState {
+  if (typeof window === "undefined") return defaultState();
+  try {
+    return parseState(localStorage.getItem(key)) ?? defaultState();
+  } catch {
     return defaultState();
   }
 }
 
-function saveState(state: PulseState) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function saveState(key: string, state: PulseState) {
+  try {
+    localStorage.setItem(key, JSON.stringify(state));
+  } catch {
+    // Storage full or blocked; progress stays in memory for this visit.
+  }
+}
+
+/**
+ * With accounts, each signed-in user gets their own copy so switching accounts
+ * on one browser never shows (or syncs) someone else's progress.
+ */
+function storageKey(uid: string | null): string {
+  if (!isSupabaseConfigured()) return STORAGE_KEY;
+  return uid ? accountKey(uid) : GUEST_KEY;
+}
+
+/**
+ * Data saved before progress was scoped per account lives under the old shared
+ * key. Hand it to the account it most likely belongs to: the only account that
+ * ever synced from this browser, or the one whose name matches it.
+ */
+function claimLegacyData(user: User) {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return;
+  const synced = Object.keys(localStorage)
+    .filter((k) => k.startsWith(SOCIAL_SNAPSHOT_PREFIX))
+    .map((k) => k.slice(SOCIAL_SNAPSHOT_PREFIX.length));
+
+  let owner: string | null = null;
+  if (synced.length === 0) owner = user.id;
+  else if (synced.length === 1) owner = synced[0];
+  else if (synced.includes(user.id) && nameMatches(parseState(raw)?.displayName ?? "", user)) owner = user.id;
+  if (!owner) return;
+
+  if (!localStorage.getItem(accountKey(owner))) localStorage.setItem(accountKey(owner), raw);
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+function nameMatches(saved: string, user: User): boolean {
+  const name = saved.trim().toLowerCase();
+  if (!name) return false;
+  const meta = user.user_metadata ?? {};
+  return [meta.display_name, meta.full_name, meta.name, user.email?.split("@")[0]]
+    .filter((c): c is string => typeof c === "string" && c.length > 0)
+    .map((c) => c.trim().toLowerCase())
+    .some((c) => c === name || c.startsWith(`${name} `) || name.startsWith(`${c} `));
+}
+
+/** Things done before signing in (e.g. the name typed on sign-up) carry over to a new account. */
+function adoptGuestData(uid: string) {
+  const raw = localStorage.getItem(GUEST_KEY);
+  if (!raw) return;
+  if (!localStorage.getItem(accountKey(uid))) localStorage.setItem(accountKey(uid), raw);
+  localStorage.removeItem(GUEST_KEY);
 }
 
 function countHabitsToday(state: PulseState, day: string): number {
@@ -226,6 +293,8 @@ export type CompleteLessonResult = {
 
 type PulseStore = {
   hydrated: boolean;
+  /** Supabase user whose progress `state` holds; null for guests or without accounts. */
+  ownerId: string | null;
   state: PulseState;
   level: number;
   completedLessonIds: Set<string>;
@@ -274,18 +343,42 @@ const PulseContext = createContext<PulseStore | null>(null);
 export function PulseProvider({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   const [state, setState] = useState<PulseState>(defaultState);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
 
   useEffect(() => {
-    // localStorage is only readable after mount; hydrating once here is intentional.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState(loadState());
-    setHydrated(true);
+    if (!isSupabaseConfigured()) {
+      // localStorage is only readable after mount; hydrating once here is intentional.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setState(loadState(STORAGE_KEY));
+      setHydrated(true);
+      return;
+    }
+    const supabase = createClient();
+    let current: string | null | undefined;
+    const apply = (user: User | null | undefined) => {
+      const uid = user?.id ?? null;
+      if (uid === current) return;
+      current = uid;
+      if (user) {
+        claimLegacyData(user);
+        adoptGuestData(user.id);
+      }
+      setOwnerId(uid);
+      setState(loadState(storageKey(uid)));
+      setHydrated(true);
+    };
+    supabase.auth
+      .getSession()
+      .then(({ data }) => apply(data.session?.user))
+      .catch(() => apply(null));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => apply(session?.user));
+    return () => data.subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-    saveState(state);
-  }, [state, hydrated]);
+    saveState(storageKey(ownerId), state);
+  }, [state, hydrated, ownerId]);
 
   const completeOnboarding = useCallback(
     (input: {
@@ -401,8 +494,8 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const resetDemo = useCallback(() => {
     const fresh = defaultState();
     setState(fresh);
-    saveState(fresh);
-  }, []);
+    saveState(storageKey(ownerId), fresh);
+  }, [ownerId]);
 
   const updateProfile = useCallback(
     (input: {
@@ -584,6 +677,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
 
   const value: PulseStore = {
     hydrated,
+    ownerId,
     state,
     level: levelFromXp(state.xp),
     completedLessonIds,

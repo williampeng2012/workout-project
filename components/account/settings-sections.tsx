@@ -40,8 +40,6 @@ import {
 import { ResetDemo } from "./reset-demo";
 import { MenuGroup, MenuRow, SectionIntro, SwitchRow } from "./ui";
 
-const STORAGE_KEY = "pulsepath-v1";
-
 export function SettingsSection({ section, version }: { section: SettingsSectionId; version: string }) {
   switch (section) {
     case "profile":
@@ -489,8 +487,7 @@ function DataSection() {
 
   function exportData() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY) ?? JSON.stringify(state);
-      const pretty = JSON.stringify(JSON.parse(raw), null, 2);
+      const pretty = JSON.stringify(state, null, 2);
       const url = URL.createObjectURL(new Blob([pretty], { type: "application/json" }));
       const a = document.createElement("a");
       a.href = url;
@@ -533,7 +530,7 @@ function DataSection() {
               ))}
             </dl>
             <p className="t-micro mt-3 px-1">
-              Stored under <code className="font-mono text-fg-2">{STORAGE_KEY}</code> · {(size / 1024).toFixed(1)} KB
+              Stored in this browser · {(size / 1024).toFixed(1)} KB
             </p>
           </Enter>
 

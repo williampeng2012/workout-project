@@ -9,7 +9,7 @@ import { usePulse } from "@/lib/store/pulse-store";
 
 /** Ties analytics to the signed-in Supabase user and keeps their profile traits fresh. */
 export function AnalyticsIdentity() {
-  const { hydrated, state, level } = usePulse();
+  const { hydrated, ownerId, state, level } = usePulse();
   const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export function AnalyticsIdentity() {
 
   const workoutsCompleted = Object.keys(state.lessonProgress).length;
   useEffect(() => {
-    if (!hydrated || !userId) return;
+    if (!hydrated || !userId || ownerId !== userId) return;
     const timer = window.setTimeout(() => {
       setUserTraits({
         goal: state.goal,
@@ -68,6 +68,7 @@ export function AnalyticsIdentity() {
   }, [
     hydrated,
     userId,
+    ownerId,
     level,
     workoutsCompleted,
     state.goal,
