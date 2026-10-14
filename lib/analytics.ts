@@ -41,17 +41,12 @@ export function initAnalytics() {
   queue = [];
   import("mixpanel-browser")
     .then(({ default: mp }) => {
+      // Page views and clicks are tracked by <InteractionTracker /> under our own event names.
       mp.init(TOKEN, {
         persistence: "localStorage",
         record_sessions_percent: 0,
-        autocapture: {
-          pageview: "url-with-path",
-          click: true,
-          capture_text_content: true,
-          submit: true,
-          input: false,
-          scroll: false,
-        },
+        autocapture: false,
+        track_pageview: false,
       });
       client = mp;
       const pending = queue ?? [];

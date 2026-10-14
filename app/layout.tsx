@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, DM_Sans } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { AnalyticsIdentity } from "@/components/analytics/analytics-identity";
+import { InteractionTracker } from "@/components/analytics/interaction-tracker";
 import { INTRO_GATE_SCRIPT, IntroSplash } from "@/components/intro-splash";
 import { ToastProvider } from "@/components/ui/toast";
 import { PulseProvider } from "@/lib/store/pulse-store";
@@ -59,6 +60,7 @@ export default function RootLayout({
         <IntroSplash />
         <PulseProvider>
           <AnalyticsIdentity />
+          <InteractionTracker />
           <ToastProvider>{children}</ToastProvider>
         </PulseProvider>
       </body>
