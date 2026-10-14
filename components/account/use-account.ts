@@ -3,6 +3,7 @@
 import type { User } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { resetUser, track } from "@/lib/analytics";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 export type SignInMethod = "email" | "google" | "apple" | "other";
@@ -68,6 +69,8 @@ export function useAccount() {
     try {
       const { error } = await createClient().auth.signOut();
       if (error) return false;
+      track("Signed Out");
+      resetUser();
       router.replace("/");
       router.refresh();
       return true;

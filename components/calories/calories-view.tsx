@@ -21,6 +21,7 @@ import {
   mealForNow,
   shiftDay,
 } from "@/lib/calories";
+import { track } from "@/lib/analytics";
 import { todayKey } from "@/lib/gamification";
 import type { MealType } from "@/lib/store/pulse-store";
 import { useToday } from "@/lib/use-today";
@@ -220,6 +221,7 @@ export function CaloriesView() {
                             className="!h-8 !w-8"
                             onClick={() => {
                               removeFood(day, f.id);
+                              track("Food Removed", { food: f.name, kcal: f.kcal, meal: f.meal });
                               toast(`Removed ${f.name}`, "info", { label: "Undo", onClick: () => restoreFood(day, f) });
                             }}
                           >

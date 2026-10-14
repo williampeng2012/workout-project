@@ -30,6 +30,10 @@ const DOCS: Record<string, Doc> = {
         body: "If Google or Apple sign-in is offered, we only receive the basic profile details those providers share (such as name and email) to create your account.",
       },
       {
+        heading: "Usage analytics",
+        body: "We use Mixpanel and Google Analytics to understand how Pulsepath is used: pages you visit, buttons you tap, and actions like starting or finishing a workout. If you're signed in, this is linked to your account (including your email and name) so we can improve the app for you. We never record what you type into text fields.",
+      },
+      {
         heading: "What we don't do",
         body: "We don't sell your data, show third-party ads, or share your training history with advertisers.",
       },

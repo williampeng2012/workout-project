@@ -22,6 +22,7 @@ import { ComingSoon, Skeleton } from "@/components/ui/states";
 import { TopBar } from "@/components/ui/top-bar";
 import { useToast } from "@/components/ui/toast";
 import { IMAGES } from "@/content/catalog";
+import { track } from "@/lib/analytics";
 import { DAILY_GOAL, STREAK_BONUSES, XP, todayKey } from "@/lib/gamification";
 import { usePulse, type Preferences } from "@/lib/store/pulse-store";
 import { LEVEL_LABELS, LEVEL_OPTIONS } from "@/lib/training";
@@ -156,6 +157,7 @@ function ProfileForm() {
     setTouched(true);
     if (validateName(name)) return;
     updateProfile({ displayName: name, goal });
+    track("Setting Changed", { setting: "profile", goal });
     toast("Profile saved");
   }
 
@@ -245,6 +247,7 @@ function TrainingSection() {
     const v = Math.min(TRAINING_DAYS.MAX, Math.max(TRAINING_DAYS.MIN, next));
     if (v === days) return;
     updateProfile({ trainingDays: v });
+    track("Setting Changed", { setting: "training_days", value: v });
   }
 
   return (
@@ -273,6 +276,7 @@ function TrainingSection() {
                       onClick={() => {
                         if (state.fitnessLevel === o.id) return;
                         updateProfile({ fitnessLevel: o.id });
+                        track("Setting Changed", { setting: "fitness_level", value: o.id });
                         toast(`Workouts sized for ${LEVEL_LABELS[o.id].toLowerCase()}`, "info");
                       }}
                       className={cn(
@@ -349,6 +353,7 @@ function TrainingSection() {
                 checked={state.preferences.restTimerSound}
                 onChange={(v) => {
                   updatePreferences({ restTimerSound: v });
+                  track("Setting Changed", { setting: "timer_sound", value: v });
                   toast(v ? "Timer sounds on" : "Timer sounds off", "info");
                 }}
               />
@@ -401,6 +406,7 @@ function NotificationsSection() {
                 checked={state.preferences[p.key]}
                 onChange={(v) => {
                   updatePreferences({ [p.key]: v });
+                  track("Setting Changed", { setting: p.key, value: v });
                   toast(`${p.label} ${v ? "on" : "off"}`, "info");
                 }}
               />
@@ -439,7 +445,10 @@ function UnitsSection() {
           <Segmented
             label="Measurement system"
             value={units}
-            onChange={(v) => updatePreferences({ units: v })}
+            onChange={(v) => {
+              updatePreferences({ units: v });
+              track("Setting Changed", { setting: "units", value: v });
+            }}
             options={[
               { value: "metric", label: "Metric" },
               { value: "imperial", label: "Imperial" },

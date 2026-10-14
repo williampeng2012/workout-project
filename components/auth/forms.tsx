@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { track } from "@/lib/analytics";
 import { isEmailAuthReady, safeNext } from "@/lib/auth-providers";
 import { usePulse } from "@/lib/store/pulse-store";
 import { createClient } from "@/lib/supabase/client";
@@ -69,9 +70,11 @@ export function SignInForm({ initialError, next = "/home" }: { initialError?: st
     try {
       const { error: err } = await createClient().auth.signInWithPassword({ email: email.trim(), password });
       if (err) throw err;
+      track("Signed In", { method: "email" });
       router.push(safeNext(next));
       router.refresh();
     } catch (err) {
+      track("Auth Failed", { method: "email", mode: "sign-in" });
       setError(friendlyAuthError(err instanceof Error ? err.message : "Sign in failed."));
       setLoading(false);
     }
@@ -155,6 +158,7 @@ export function SignUpForm({ next = "/onboarding" }: { next?: string }) {
         },
       });
       if (err) throw err;
+      track("Signed Up", { method: "email", needs_confirmation: !data.session });
       if (data.session) {
         router.push(safeNext(next));
         router.refresh();
@@ -163,6 +167,7 @@ export function SignUpForm({ next = "/onboarding" }: { next?: string }) {
         setLoading(false);
       }
     } catch (err) {
+      track("Auth Failed", { method: "email", mode: "sign-up" });
       setError(friendlyAuthError(err instanceof Error ? err.message : "Couldn't create your account."));
       setLoading(false);
     }
@@ -264,6 +269,7 @@ export function ForgotPasswordForm() {
       setError(friendlyAuthError(err.message));
       return;
     }
+    track("Password Reset Requested");
     setSentTo(email.trim());
   }
 

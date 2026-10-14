@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { track } from "@/lib/analytics";
 import { FOOD_PRESETS, MEALS } from "@/lib/calories";
 import { usePulse, type MealType } from "@/lib/store/pulse-store";
 import { cn } from "@/lib/cn";
@@ -55,6 +56,12 @@ function FoodForm({ day, initialMeal, onDone }: { day: string; initialMeal: Meal
     setTouched(true);
     const entry = addFood({ name, kcal: kcalNum, meal }, day);
     if (!entry) return;
+    track("Food Logged", {
+      food: entry.name,
+      kcal: entry.kcal,
+      meal: entry.meal,
+      preset: FOOD_PRESETS.some((p) => p.name === entry.name),
+    });
     toast(`${entry.name} · ${entry.kcal} kcal added`);
     onDone();
   }
@@ -131,6 +138,7 @@ function FoodForm({ day, initialMeal, onDone }: { day: string; initialMeal: Meal
           aria-pressed={scanRequested}
           onClick={() => {
             const on = toggleNotify(SCAN_NOTIFY_ID);
+            track("Barcode Scan Interest", { on });
             toast(on ? "We'll let you know when meal scanning launches" : "Notification removed", on ? "success" : "info");
           }}
           className={cn(

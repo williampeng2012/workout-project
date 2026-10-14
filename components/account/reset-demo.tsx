@@ -6,6 +6,7 @@ import { useCallback, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { track } from "@/lib/analytics";
 import { usePulse } from "@/lib/store/pulse-store";
 
 /** Renders a trigger (via render prop) and the confirmation sheet for wiping local data. */
@@ -54,6 +55,7 @@ export function ResetDemo({
             icon={<RotateCcw size={16} aria-hidden />}
             onClick={() => {
               resetDemo();
+              track("Progress Reset");
               setOpen(false);
               toast("Demo data reset", "info");
               router.push("/onboarding");

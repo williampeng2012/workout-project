@@ -8,6 +8,7 @@ import { Logo } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Media } from "@/components/ui/media";
 import { IMAGES } from "@/content/catalog";
+import { track } from "@/lib/analytics";
 import { DAILY_GOAL } from "@/lib/gamification";
 import { LEVEL_OPTIONS, lessonOrderFor, personalizeLesson, type FitnessLevel } from "@/lib/training";
 import { usePulse, type PulseState } from "@/lib/store/pulse-store";
@@ -70,6 +71,14 @@ export function OnboardingFlow() {
     setFinishing(true);
     completeOnboarding({ goal, fitnessLevel: level, trainingDays: days, habitNames: habits });
     if (name.trim()) updateProfile({ displayName: name.trim() });
+    track("Onboarding Completed", {
+      goal,
+      fitness_level: level,
+      training_days: days,
+      habits,
+      habit_count: habits.length,
+      gave_name: !!name.trim(),
+    });
     router.push("/home");
   }
 

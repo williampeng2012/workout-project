@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { track } from "@/lib/analytics";
 import { CM_PER_IN, LB_PER_KG, calculatedTarget, goalAdjustmentLabel } from "@/lib/calories";
 import { usePulse, type BodyProfile } from "@/lib/store/pulse-store";
 
@@ -70,6 +71,7 @@ function TargetForm({ onDone }: { onDone: () => void }) {
       updateBody({ sex, age: Math.round(ageN), heightCm: Math.round(heightN), weightKg: Math.round(weightKg * 10) / 10 });
     }
     setCalorieTarget(mode === "custom" ? customN : null);
+    track("Calorie Target Set", { mode, kcal: mode === "custom" ? customN : null, body_filled: bodyValid });
     toast("Calorie target saved");
     onDone();
   }

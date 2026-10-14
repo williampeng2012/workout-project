@@ -26,6 +26,7 @@ import {
   searchCatalog,
   type SearchResult,
 } from "@/content/catalog";
+import { track } from "@/lib/analytics";
 import { usePulse } from "@/lib/store/pulse-store";
 import { cn } from "@/lib/cn";
 
@@ -96,6 +97,13 @@ export function SearchView() {
     }, 250);
     return () => window.clearTimeout(t);
   }, [query, replaceUrl]);
+
+  // One event per settled query, not per keystroke.
+  useEffect(() => {
+    if (!trimmed) return;
+    const t = window.setTimeout(() => track("Searched", { query: trimmed, results: results.length }), 1200);
+    return () => window.clearTimeout(t);
+  }, [trimmed, results.length]);
 
   const run = (q: string) => {
     setQuery(q);
@@ -275,7 +283,13 @@ export function SearchView() {
                   </h2>
                   <ul className="grid gap-2.5 md:grid-cols-2">
                     {g.items.map((r) => (
-                      <li key={r.id} onClick={() => pushRecentSearch(trimmed)}>
+                      <li
+                        key={r.id}
+                        onClick={() => {
+                          pushRecentSearch(trimmed);
+                          track("Search Result Clicked", { query: trimmed, kind: r.kind, result: r.title, href: r.href });
+                        }}
+                      >
                         <RowCard
                           href={r.href}
                           image={r.image}

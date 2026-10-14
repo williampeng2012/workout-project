@@ -10,6 +10,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { EmptyState, PageSkeleton } from "@/components/ui/states";
 import { TopBar } from "@/components/ui/top-bar";
 import { useToast } from "@/components/ui/toast";
+import { track } from "@/lib/analytics";
 import { DAILY_GOAL, XP, todayKey } from "@/lib/gamification";
 import { usePulse, type LocalHabit } from "@/lib/store/pulse-store";
 import { todayLabel } from "@/lib/use-today";
@@ -69,6 +70,7 @@ export default function CheckinPage() {
 
   function toggle(h: LocalHabit) {
     const r = toggleHabitToday(h.id);
+    track("Habit Toggled", { habit: h.name, checked: r.checked, source: "checkin" });
     if (!r.checked) {
       toast(`${h.name} unchecked`, "info");
       return;
@@ -240,6 +242,7 @@ export default function CheckinPage() {
               existing={state.habits.map((h) => h.name)}
               onAdd={(name) => {
                 addHabit(name);
+                track("Habit Added", { habit: name.trim(), suggested: SUGGESTIONS.includes(name.trim()) });
                 toast(`${name.trim()} added`);
               }}
             />
@@ -263,6 +266,7 @@ export default function CheckinPage() {
             onClick={() => {
               if (!pendingRemove) return;
               removeHabit(pendingRemove.id);
+              track("Habit Removed", { habit: pendingRemove.name });
               toast(`${pendingRemove.name} removed`, "info");
               setPendingRemove(null);
             }}

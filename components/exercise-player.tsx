@@ -12,6 +12,7 @@ import { Pill } from "@/components/ui/section";
 import { Sheet } from "@/components/ui/sheet";
 import { getExerciseImage } from "@/content/catalog";
 import { DIFFICULTY_LABELS, type Exercise } from "@/content/exercises";
+import { track } from "@/lib/analytics";
 import { getTaskHref } from "@/lib/daily-plan";
 import { todayKey } from "@/lib/gamification";
 import { canGoBackInApp } from "@/lib/nav-history";
@@ -102,7 +103,10 @@ export function ExercisePlayer({
     return () => window.removeEventListener("keydown", onKey);
   }, [phase, exitOpen, isTimed, running, paused, timer]);
 
+  const trackProps = { exercise_id: exercise.id, exercise: exercise.name, timed: isTimed, from_plan: !!taskId };
+
   function start() {
+    track("Exercise Started", trackProps);
     unlockAudio();
     if (sound.current) playTick();
     setPhase("countdown");
@@ -123,6 +127,11 @@ export function ExercisePlayer({
   }
 
   function finish() {
+    track("Exercise Completed", {
+      ...trackProps,
+      seconds: isTimed ? totalSeconds - timer.secondsLeft : null,
+      reps: isTimed ? null : repsDone,
+    });
     setElapsed(isTimed ? totalSeconds - timer.secondsLeft : 0);
     timer.set(0);
     if (taskId) {
@@ -419,7 +428,15 @@ export function ExercisePlayer({
           >
             Start over
           </Button>
-          <Button size="lg" block variant="ghost" onClick={leave}>
+          <Button
+            size="lg"
+            block
+            variant="ghost"
+            onClick={() => {
+              track("Exercise Quit", { ...trackProps, phase });
+              leave();
+            }}
+          >
             End session
           </Button>
         </div>

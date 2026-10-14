@@ -37,6 +37,7 @@ import {
 } from "@/content/catalog";
 import { formatClassTime, getUpcomingLiveClass } from "@/content/classes";
 import { EXERCISES } from "@/content/exercises";
+import { track } from "@/lib/analytics";
 import { burnedOn, dailyTarget, eatenOn } from "@/lib/calories";
 import { DAILY_GOAL, XP, todayKey, xpIntoLevel } from "@/lib/gamification";
 import { featuredSlides, orderedCategories, recommendedWorkouts } from "@/lib/recommendations";
@@ -329,6 +330,7 @@ export default function HomePage() {
                     aria-pressed={on}
                     onClick={() => {
                       const r = t.toggleHabitToday(h.id);
+                      track("Habit Toggled", { habit: h.name, checked: r.checked, source: "home" });
                       if (r.checked) toast(r.xpDelta ? `${h.name} · +${r.xpDelta} XP` : `${h.name} checked`);
                     }}
                     className={cn(

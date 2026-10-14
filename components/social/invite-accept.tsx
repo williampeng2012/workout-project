@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ButtonLink } from "@/components/ui/button";
 import { Enter } from "@/components/ui/reveal";
 import { TopBar } from "@/components/ui/top-bar";
+import { track } from "@/lib/analytics";
 import { usePulse } from "@/lib/store/pulse-store";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import {
@@ -38,9 +39,14 @@ export function InviteAccept({ code }: { code: string }) {
       if (!isSupabaseConfigured() || !clean) return setStatus({ kind: "done", result: "not_found", friend: null });
       try {
         const user = await currentUser();
-        if (!user) return setStatus({ kind: "signed-out" });
+        if (!user) {
+          track("Invite Opened", { signed_in: false });
+          return setStatus({ kind: "signed-out" });
+        }
         await ensureProfile(user.id, state.displayName.trim() || user.name);
-        setStatus({ kind: "done", ...(await addFriendByCode(clean)) });
+        const res = await addFriendByCode(clean);
+        track("Invite Accepted", { result: res.result });
+        setStatus({ kind: "done", ...res });
       } catch (err) {
         if (err instanceof SocialError && err.kind === "setup") return setStatus({ kind: "setup" });
         setStatus({ kind: "error", message: err instanceof Error ? err.message : "Something went wrong." });

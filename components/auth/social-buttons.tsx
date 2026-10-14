@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { OAUTH_PENDING_KEY, track } from "@/lib/analytics";
 import {
   OAUTH_PROVIDERS,
   isProviderReady,
@@ -43,8 +44,12 @@ export function SocialButtons({ next, mode }: { next: string; mode: "sign-in" | 
       return;
     }
     setPending(provider.id);
+    track("OAuth Started", { provider: provider.id, mode });
+    sessionStorage.setItem(OAUTH_PENDING_KEY, provider.id);
     const { error } = await signInWithProvider(provider, next);
     if (error) {
+      sessionStorage.removeItem(OAUTH_PENDING_KEY);
+      track("Auth Failed", { method: provider.id, mode });
       setNotice({ tone: "error", text: error });
       setPending(null);
     }

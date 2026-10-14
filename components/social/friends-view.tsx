@@ -26,6 +26,7 @@ import { EmptyState, Skeleton } from "@/components/ui/states";
 import { TopBar } from "@/components/ui/top-bar";
 import { useToast } from "@/components/ui/toast";
 import { Enter } from "@/components/ui/reveal";
+import { setUserTraits, track } from "@/lib/analytics";
 import { cn } from "@/lib/cn";
 import { usePulse } from "@/lib/store/pulse-store";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
@@ -197,8 +198,14 @@ function Ready({ data, reload }: { data: Data; reload: () => Promise<void> }) {
   }, []);
 
   function changeScope(next: Scope) {
+    track("Leaderboard Scope Changed", { scope: next });
     setScope(next);
     if (next === "everyone") void loadGlobal();
+  }
+
+  function openPerson(p: Person) {
+    track("Friend Profile Viewed", { relation: p.relation, scope });
+    setPerson(p);
   }
 
   function patchRelation(id: string, relation: Relation) {
@@ -215,6 +222,7 @@ function Ready({ data, reload }: { data: Data; reload: () => Promise<void> }) {
         return;
       }
       const nowFriends = result === "accepted" || result === "already_friends";
+      track("Friend Request Sent", { source: person ? "profile" : "leaderboard", result });
       patchRelation(p.id, nowFriends ? "friends" : "outgoing");
       toast(nowFriends ? `You and ${nameOf(p)} are now friends` : `Request sent to ${nameOf(p)}`);
       await reload();
@@ -230,6 +238,7 @@ function Ready({ data, reload }: { data: Data; reload: () => Promise<void> }) {
     setBusyId(p.id);
     try {
       await removeFriend(data.uid, p.id);
+      track("Friend Removed");
       toast(`Removed ${nameOf(p)}`, "info");
       setPerson(null);
       patchRelation(p.id, "none");
@@ -245,6 +254,7 @@ function Ready({ data, reload }: { data: Data; reload: () => Promise<void> }) {
     setVisible(next);
     try {
       await setLeaderboardVisibility(data.uid, next);
+      track("Leaderboard Visibility Changed", { visible: next });
       toast(next ? "You're on the Everyone leaderboard" : "You're hidden from the Everyone leaderboard");
       if (global.kind !== "idle") void loadGlobal();
     } catch (err) {
@@ -284,7 +294,7 @@ function Ready({ data, reload }: { data: Data; reload: () => Promise<void> }) {
             hasFriends={friends.length > 0}
             visible={visible}
             busyId={busyId}
-            onOpen={setPerson}
+            onOpen={openPerson}
             onAdd={add}
             onRemove={remove}
             onShowMe={() => toggleVisible(true)}
@@ -326,9 +336,10 @@ function InviteCard({ data, reload }: { data: Data; reload: () => Promise<void> 
   const [code, setCode] = useState(data.me.friend_code);
   const [rotating, setRotating] = useState(false);
 
-  async function copy(text: string, message: string) {
+  async function copy(text: string, message: string, what: "code" | "link") {
     try {
       await navigator.clipboard.writeText(text);
+      track(what === "code" ? "Friend Code Copied" : "Invite Link Copied");
       toast(message);
     } catch {
       toast("Couldn't copy — select it and copy manually", "info");
@@ -340,12 +351,13 @@ function InviteCard({ data, reload }: { data: Data; reload: () => Promise<void> 
     if (navigator.share) {
       try {
         await navigator.share({ title: "Pulsepath", text: "Train with me on Pulsepath", url });
+        track("Invite Shared");
         return;
       } catch (err) {
         if ((err as DOMException).name === "AbortError") return;
       }
     }
-    await copy(url, "Invite link copied");
+    await copy(url, "Invite link copied", "link");
   }
 
   async function rotate() {
@@ -353,6 +365,7 @@ function InviteCard({ data, reload }: { data: Data; reload: () => Promise<void> 
     setRotating(true);
     try {
       setCode(await regenerateFriendCode());
+      track("Friend Code Regenerated");
       toast("New friend code ready");
       void reload();
     } catch (err) {
@@ -372,7 +385,7 @@ function InviteCard({ data, reload }: { data: Data; reload: () => Promise<void> 
             <p className="flex-1 font-mono text-[28px] font-semibold tracking-[0.12em]" aria-label={`Friend code ${code.split("").join(" ")}`}>
               {formatFriendCode(code)}
             </p>
-            <IconButton label="Copy friend code" variant="plain" onClick={() => copy(formatFriendCode(code), "Friend code copied")}>
+            <IconButton label="Copy friend code" variant="plain" onClick={() => copy(formatFriendCode(code), "Friend code copied", "code")}>
               <Copy size={17} aria-hidden />
             </IconButton>
             <IconButton label="Make a new code" variant="plain" onClick={rotate} disabled={rotating}>
@@ -405,6 +418,8 @@ function UsernameRow({ uid, username, onSaved }: { uid: string; username: string
     setError(null);
     try {
       await setUsername(uid, next);
+      track("Username Set", { first_time: !username });
+      setUserTraits({ username: next });
       toast(`You're @${next}`);
       setEditing(false);
       await onSaved();
@@ -492,6 +507,7 @@ function AddFriend({ reload }: { reload: () => Promise<void> }) {
       const code = raw.startsWith("@") ? null : parseFriendCode(raw);
       if (code) {
         const res = await addFriendByCode(code);
+        track("Friend Added By Code", { result: res.result, source: "add_form" });
         if (res.result === "added") {
           toast(`You and ${nameOf(res.friend)} are now friends`);
           setQuery("");
@@ -523,6 +539,7 @@ function AddFriend({ reload }: { reload: () => Promise<void> }) {
     setRequesting(true);
     try {
       const result = await sendFriendRequest(profile.id);
+      track("Friend Request Sent", { source: "search", result });
       if (result === "accepted" || result === "already_friends") {
         setFound({ ...profile, relation: "friends" });
         toast(`You and ${nameOf(profile)} are now friends`);
@@ -611,6 +628,7 @@ function Requests({ requests, reload }: { requests: FriendRequest[]; reload: () 
     try {
       if (action === "cancel") await cancelRequest(req.id);
       else await respondToRequest(req.id, action === "accept");
+      track("Friend Request Responded", { action });
       if (action === "accept") toast(`You and ${nameOf(req.other)} are now friends`);
       await reload();
     } catch (err) {

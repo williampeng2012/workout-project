@@ -18,6 +18,7 @@ import {
 } from "@/content/classes";
 import { DIFFICULTY_LABELS, type Exercise } from "@/content/exercises";
 import { getOrderedLessons, type Lesson } from "@/content/lessons";
+import { track } from "@/lib/analytics";
 import { useIsClient, usePulse } from "@/lib/store/pulse-store";
 import { cn } from "@/lib/cn";
 
@@ -62,6 +63,7 @@ export function useNotify(
   const on = hydrated && state.notifyRequests.includes(id);
   const toggle = () => {
     const next = toggleNotify(id);
+    track("Notify Me Toggled", { item: id, kind: id.split("-")[0], on: next });
     toast(next ? messages.on : messages.off, next ? "success" : "info");
   };
   return { on, toggle, hydrated };

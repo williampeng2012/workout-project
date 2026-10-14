@@ -15,6 +15,7 @@ import {
   getTaskTypeLabel,
   type DailyTask,
 } from "@/lib/daily-plan";
+import { track } from "@/lib/analytics";
 import { todayKey } from "@/lib/gamification";
 import { todayLabel, useToday } from "@/lib/use-today";
 import { cn } from "@/lib/cn";
@@ -43,6 +44,7 @@ export default function PlanPage() {
       if (!checked) xp = t.toggleHabitToday(task.habitId).xpDelta;
     }
     t.completeDailyTask(task.id, task.durationMinutes);
+    track("Daily Task Completed", { task_type: task.type, task: task.title, minutes: task.durationMinutes, source: "plan" });
     toast(xp ? `${task.title} · +${xp} XP` : `${task.title} marked done`);
   }
 

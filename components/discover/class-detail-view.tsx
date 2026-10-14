@@ -12,6 +12,7 @@ import { TopBar } from "@/components/ui/top-bar";
 import { getCategory, getClassImage, getLessonImage } from "@/content/catalog";
 import { CATEGORY_LABELS, getClass, getReplayClasses } from "@/content/classes";
 import { DIFFICULTY_LABELS } from "@/content/exercises";
+import { track } from "@/lib/analytics";
 import {
   ClassTime,
   DetailHero,
@@ -85,7 +86,10 @@ export function ClassDetailView({ id }: { id: string }) {
             <Button
               size="lg"
               icon={<Play size={16} fill="currentColor" aria-hidden />}
-              onClick={() => setSheetOpen(true)}
+              onClick={() => {
+                track("Class Replay Opened", { class_id: cls.id, class: cls.title });
+                setSheetOpen(true);
+              }}
             >
               Watch replay
             </Button>

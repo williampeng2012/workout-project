@@ -6,6 +6,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { track } from "@/lib/analytics";
 import { usePulse } from "@/lib/store/pulse-store";
 import { cn } from "@/lib/cn";
 import { initialsOf } from "./ui";
@@ -92,6 +93,7 @@ export function AvatarPicker({ name, className }: { name: string; className?: st
     setBusy(true);
     try {
       updateAvatar(await toAvatarDataUrl(file));
+      track("Setting Changed", { setting: "avatar", value: "uploaded" });
       setOpen(false);
       toast("Profile photo updated");
     } catch {
@@ -145,6 +147,7 @@ export function AvatarPicker({ name, className }: { name: string; className?: st
                 icon={<Trash2 size={16} aria-hidden />}
                 onClick={() => {
                   updateAvatar(null);
+                  track("Setting Changed", { setting: "avatar", value: "removed" });
                   setOpen(false);
                   toast("Profile photo removed");
                 }}

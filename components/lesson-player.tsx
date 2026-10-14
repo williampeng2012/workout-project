@@ -28,6 +28,7 @@ import { getExerciseImage, getLessonImage } from "@/content/catalog";
 import { getExerciseByName } from "@/content/exercises";
 import { getLesson, type Lesson } from "@/content/lessons";
 import { levelFromXp, todayKey } from "@/lib/gamification";
+import { track } from "@/lib/analytics";
 import { canGoBackInApp } from "@/lib/nav-history";
 import { playAlarm, playGo, playTick, unlockAudio } from "@/lib/sound";
 import { usePulse } from "@/lib/store/pulse-store";
@@ -126,6 +127,15 @@ export function LessonPlayer({
 
   useWakeLock(phase !== "done");
 
+  const startedAt = useRef<number | null>(null);
+  const trackProps = {
+    lesson_id: lesson.id,
+    lesson_title: lesson.title,
+    moves: steps.length,
+    fitness_level: level,
+    from_plan: !!taskId,
+  };
+
   function goTo(i: number) {
     setIndex(i);
     setPhase("intro");
@@ -147,10 +157,23 @@ export function LessonPlayer({
       levelBefore: levelFromXp(xpBefore),
       levelAfter: levelFromXp(xpBefore + xpEarned + res.bonusXp),
     });
+    track("Workout Completed", {
+      ...trackProps,
+      duration_sec: startedAt.current ? Math.round((Date.now() - startedAt.current) / 1000) : null,
+      xp_earned: xpEarned,
+      bonus_xp: res.bonusXp,
+      leveled_up: levelFromXp(xpBefore + xpEarned + res.bonusXp) > levelFromXp(xpBefore),
+      repeat: res.alreadyDone,
+    });
     setPhase("done");
   }
 
   function startMove() {
+    if (startedAt.current === null) {
+      startedAt.current = Date.now();
+      track("Workout Started", trackProps);
+    }
+    track("Move Started", { lesson_id: lesson.id, move: step.name, move_index: index });
     unlockAudio();
     if (sound.current) playTick();
     setPhase("ready");
@@ -188,7 +211,13 @@ export function LessonPlayer({
     else timer.resume();
   }
 
+  function skipMove() {
+    track("Move Skipped", { lesson_id: lesson.id, move: step.name, move_index: index, phase });
+    goTo(index + 1);
+  }
+
   function takeBreak() {
+    track("Break Taken", { lesson_id: lesson.id, move_index: index });
     unlockAudio();
     resumeAfter.current.main = timer.running;
     timer.pause();
@@ -205,6 +234,7 @@ export function LessonPlayer({
   }
 
   function extendBreak() {
+    track("Break Extended", { lesson_id: lesson.id, move_index: index });
     if (breakOver || !breakTimer.running) {
       setBreakOver(false);
       breakTimer.start(30);
@@ -231,6 +261,16 @@ export function LessonPlayer({
     if (canGoBackInApp()) router.back();
     else router.push(taskId ? "/home" : `/workouts/${lesson.id}`);
   }, [router, taskId, lesson.id]);
+
+  function quit() {
+    track("Workout Quit", {
+      ...trackProps,
+      move_index: index,
+      started: startedAt.current !== null,
+      duration_sec: startedAt.current ? Math.round((Date.now() - startedAt.current) / 1000) : 0,
+    });
+    leave();
+  }
 
   useEffect(() => {
     if (phase === "done" || exitOpen || onBreak || !timedPhase) return;
@@ -509,7 +549,7 @@ export function LessonPlayer({
                 {!isLast && (
                   <button
                     type="button"
-                    onClick={() => goTo(index + 1)}
+                    onClick={skipMove}
                     aria-label="Skip this move"
                     title="Skip this move"
                     className="glass pressable flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-full hover:bg-white/10"
@@ -558,7 +598,7 @@ export function LessonPlayer({
           <Button size="lg" block onClick={closeExit}>
             Keep going
           </Button>
-          <Button size="lg" block variant="secondary" onClick={leave}>
+          <Button size="lg" block variant="secondary" onClick={quit}>
             End workout
           </Button>
         </div>
